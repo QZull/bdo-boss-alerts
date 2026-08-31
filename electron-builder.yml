@@ -1,0 +1,22 @@
+appId: ru.bdo.bossalerts
+productName: Респ боссов
+directories:
+  output: dist
+  buildResources: resources
+files:
+  - out/**/*
+extraResources:
+  - from: resources
+    to: resources
+win:
+  icon: icon.png
+  target:
+    - target: portable
+      arch:
+        - x64
+portable:
+  artifactName: Resp-bossov.exe
+asar: true
+electronLanguages:
+  - ru
+  - en-US

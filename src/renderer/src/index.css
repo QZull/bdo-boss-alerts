@@ -1,0 +1,102 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Segoe UI Variable', 'Segoe UI', 'Trebuchet MS', sans-serif;
+  --font-display: Palatino, 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+  --color-ink: #07070b;
+  --color-panel: #12131a;
+  --color-panel-2: #1a1c26;
+  --color-gold: #e4c37a;
+  --color-gold-dim: #a67c2d;
+  --color-cream: #f3ead7;
+  --color-muted: #9a9080;
+  --color-line: rgb(228 195 122 / 0.18);
+  --color-danger: #c45c4a;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  background: #07070b;
+  color: #f3ead7;
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  user-select: none;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(228 195 122 / 0.28);
+  border-radius: 99px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.drag {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.gold-line {
+  background: linear-gradient(90deg, transparent, rgb(228 195 122 / 0.55), transparent);
+}
+
+.pulse-gold {
+  box-shadow: 0 0 0 1px rgb(228 195 122 / 0.55), 0 0 22px rgb(228 195 122 / 0.18);
+}
+
+.app-select {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.app-select::-ms-expand {
+  display: none;
+}
+
+input[type='range'].app-range {
+  accent-color: #e4c37a;
+  height: 6px;
+}
+
+input[type='checkbox'].app-check {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1px solid rgb(228 195 122 / 0.55);
+  border-radius: 4px;
+  background: #0b0c10;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+input[type='checkbox'].app-check:checked {
+  background: #e4c37a;
+  border-color: #e4c37a;
+}
+
+input[type='checkbox'].app-check:checked::after {
+  content: '';
+  width: 8px;
+  height: 5px;
+  border-left: 2px solid #1a1208;
+  border-bottom: 2px solid #1a1208;
+  transform: translateY(-1px) rotate(-45deg);
+}
