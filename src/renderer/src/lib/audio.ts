@@ -75,4 +75,8 @@ export async function playPackedSound(base64: string, mime: string, volume: numb
   source.connect(gain)
   gain.connect(ctx.destination)
   source.start()
+  source.onended = () => {
+    source.disconnect()
+    gain.disconnect()
+  }
 }

@@ -12,7 +12,6 @@ export const DEFAULT_BOSSES: Boss[] = [
   { id: 'garmoth', name: 'Камос', location: 'Логово Камос, Дриган', image: 'garmoth.png', color: DEFAULT_COLOR, enabled: true, custom: false },
   { id: 'quint', name: 'Квинт', location: 'Холм Квинт', image: 'quint.png', color: DEFAULT_COLOR, enabled: true, custom: false },
   { id: 'muraka', name: 'Мурака', location: 'Западный лес Кальфеона', image: 'muraka.png', color: DEFAULT_COLOR, enabled: true, custom: false },
-  { id: 'black-shadow', name: 'Чёрная тень', location: 'Заброшенная ферма Марни', image: 'black-shadow.png', color: DEFAULT_COLOR, enabled: true, custom: false },
   { id: 'bulgasal', name: 'Пульгасари', location: 'Хольбон', image: 'bulgasal.png', color: DEFAULT_COLOR, enabled: true, custom: false },
   { id: 'uturi', name: 'Утури', location: 'Турнир мечников', image: 'uturi.png', color: DEFAULT_COLOR, enabled: true, custom: false },
   { id: 'sangoon', name: 'Сангун', location: 'Тигриное нагорье', image: 'sangoon.png', color: DEFAULT_COLOR, enabled: true, custom: false },
@@ -53,8 +52,6 @@ export const DEFAULT_SLOTS: SpawnSlot[] = [
   slot(2, '14:00', ['karanda', 'uturi']),
   slot(4, '14:00', ['kutum', 'uturi']),
   slot(5, '14:00', ['quint', 'muraka']),
-
-  slot(5, '15:00', ['black-shadow']),
 
   slot(1, '16:00', ['kutum', 'golden-pig']),
   slot(3, '16:00', ['nouver', 'uturi']),
@@ -103,6 +100,15 @@ export const BUILTIN_SOUNDS = [
   { id: 'sound11', name: 'Звук 11', file: 'sound11.mp3' },
   { id: 'silent', name: 'Без звука' }
 ] as const
+
+/** Убранные из игры стоковые боссы — вычищаются из сохранённых настроек. */
+export const RETIRED_BOSS_IDS = new Set(['black-shadow'])
+
+export function withoutRetiredSlots(slots: SpawnSlot[]): SpawnSlot[] {
+  return slots
+    .map((slot) => ({ ...slot, bossIds: slot.bossIds.filter((id) => !RETIRED_BOSS_IDS.has(id)) }))
+    .filter((slot) => slot.bossIds.length > 0)
+}
 
 const LEGACY_SOUND_IDS = new Set(['chime', 'ding', 'horn', 'alarm', 'wood'])
 

@@ -1,7 +1,8 @@
+import { memo } from 'react'
 import type { Boss } from '@shared/types'
 import { accent, bossSrc } from '../lib/media'
 
-export function BossPortrait({
+export const BossPortrait = memo(function BossPortrait({
   boss,
   size = 44,
   className = ''
@@ -24,4 +25,4 @@ export function BossPortrait({
       <img src={bossSrc(boss)} alt={boss.name} className="h-full w-full object-cover" draggable={false} />
     </span>
   )
-}
+})

@@ -20,7 +20,10 @@ export default function App() {
     const onHash = () => setView(viewFromHash())
     window.addEventListener('hashchange', onHash)
     loadState().then(setState)
-    const stop = subscribe(setState, setNow)
+    const stop = subscribe(setState, (value) => {
+      if (viewFromHash() === 'toast') return
+      setNow(value)
+    })
     return () => {
       window.removeEventListener('hashchange', onHash)
       stop()

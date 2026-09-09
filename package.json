@@ -1,7 +1,7 @@
 {
   "name": "bdo-boss-alerts",
   "productName": "Респ боссов",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Портативный таймер мировых боссов Black Desert (RU) с уведомлениями",
   "main": "./out/main/index.js",
   "author": "BDO Boss Alerts",

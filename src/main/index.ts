@@ -1,6 +1,7 @@
 import { extname, join } from 'node:path'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from 'node:fs'
 import { spawn } from 'node:child_process'
+import { pathToFileURL } from 'node:url'
 import {
   app,
   BrowserWindow,
@@ -11,9 +12,18 @@ import {
   dialog,
   screen,
   protocol,
-  shell
+  shell,
+  net
 } from 'electron'
-import { createDefaultState, DEFAULT_BOSSES, BUILTIN_SOUNDS, migrateSoundId, clampUiScale } from '@shared/defaults'
+import {
+  createDefaultState,
+  DEFAULT_BOSSES,
+  BUILTIN_SOUNDS,
+  migrateSoundId,
+  clampUiScale,
+  RETIRED_BOSS_IDS,
+  withoutRetiredSlots
+} from '@shared/defaults'
 import { upcomingGroups, reminderToastTitle, reminderSeconds } from '@shared/logic'
 import { clampUtcOffset, detectUtcOffsetHours } from '@shared/utc'
 import type { AppState, ToastPayload } from '@shared/types'
@@ -30,11 +40,9 @@ const fired = new Set<string>()
 let state: AppState
 let tray: Tray | undefined
 let mainWindow: BrowserWindow | undefined
-let flyoutWindow: BrowserWindow | undefined
 let toastWindow: BrowserWindow | undefined
-let hideFlyoutTimer: NodeJS.Timeout | undefined
 let toastHideTimer: NodeJS.Timeout | undefined
-let flyoutPinned = false
+let lastTrayTip = ''
 
 function isDev(): boolean {
   return !app.isPackaged
@@ -76,6 +84,7 @@ function hydrate(raw: Partial<AppState> | undefined): AppState {
   if (!raw) return base
   const bosses = [...base.bosses]
   for (const incoming of raw.bosses ?? []) {
+    if (RETIRED_BOSS_IDS.has(incoming.id)) continue
     const idx = bosses.findIndex((boss) => boss.id === incoming.id)
     if (idx >= 0) {
       const def = DEFAULT_BOSSES.find((boss) => boss.id === incoming.id)
@@ -101,7 +110,7 @@ function hydrate(raw: Partial<AppState> | undefined): AppState {
       seconds: reminderSeconds(item as { seconds?: number; minutes?: number })
     })),
     customSounds: raw.customSounds ?? [],
-    extraSlots: raw.extraSlots ?? [],
+    extraSlots: withoutRetiredSlots(raw.extraSlots ?? []),
     windowsToast: false,
     toastDurationSeconds: Math.min(120, Math.max(2, Number(raw.toastDurationSeconds ?? base.toastDurationSeconds) || 8)),
     uiScale: clampUiScale(raw.uiScale ?? base.uiScale),
@@ -139,8 +148,13 @@ function applyAutostart(enabled: boolean): void {
   }
   app.setLoginItemSettings({
     openAtLogin: enabled,
-    path: portableExe()
+    path: portableExe(),
+    args: enabled ? ['--hidden'] : []
   })
+}
+
+function startedInTray(): boolean {
+  return process.argv.includes('--hidden') || Boolean(app.getLoginItemSettings().wasOpenedAtLogin)
 }
 
 function preloadPath(): string {
@@ -159,7 +173,7 @@ function webPrefs(): Electron.WebPreferences {
     preload: preloadPath(),
     contextIsolation: true,
     sandbox: false,
-    backgroundThrottling: false,
+    backgroundThrottling: true,
     autoplayPolicy: 'no-user-gesture-required'
   }
 }
@@ -192,27 +206,9 @@ function createMainWindow(): BrowserWindow {
       win.hide()
     }
   })
-  return win
-}
-
-function createFlyout(): BrowserWindow {
-  const win = new BrowserWindow({
-    width: 420,
-    height: 560,
-    show: false,
-    frame: false,
-    resizable: false,
-    skipTaskbar: true,
-    alwaysOnTop: true,
-    fullscreenable: false,
-    backgroundColor: '#07070b',
-    transparent: false,
-    webPreferences: webPrefs()
-  })
-  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-  loadView(win, 'flyout')
-  win.on('blur', () => {
-    if (!flyoutPinned) scheduleHideFlyout(250)
+  win.on('show', () => {
+    applyUiScale()
+    win.webContents.send('tick', Date.now())
   })
   return win
 }
@@ -240,18 +236,6 @@ function createToast(): BrowserWindow {
   return win
 }
 
-function positionFlyout(): void {
-  if (!flyoutWindow || !tray) return
-  const bounds = tray.getBounds()
-  const display = screen.getDisplayNearestPoint({ x: bounds.x, y: bounds.y })
-  const { width, height } = flyoutWindow.getBounds()
-  let x = Math.round(bounds.x + bounds.width / 2 - width / 2)
-  let y = bounds.y > display.bounds.y + 80 ? bounds.y - height - 10 : bounds.y + bounds.height + 10
-  x = Math.min(Math.max(display.workArea.x + 8, x), display.workArea.x + display.workArea.width - width - 8)
-  y = Math.min(Math.max(display.workArea.y + 8, y), display.workArea.y + display.workArea.height - height - 8)
-  flyoutWindow.setPosition(x, y, false)
-}
-
 function positionToast(): void {
   if (!toastWindow) return
   const display = screen.getPrimaryDisplay()
@@ -259,30 +243,6 @@ function positionToast(): void {
   const x = display.workArea.x + display.workArea.width - width - 16
   const y = display.workArea.y + display.workArea.height - height - 16
   toastWindow.setPosition(x, y, false)
-}
-
-function scheduleHideFlyout(ms = 400): void {
-  clearTimeout(hideFlyoutTimer)
-  hideFlyoutTimer = setTimeout(() => {
-    if (flyoutPinned) return
-    const point = screen.getCursorScreenPoint()
-    if (tray && inBounds(tray.getBounds(), point)) return
-    if (flyoutWindow?.isVisible() && inBounds(flyoutWindow.getBounds(), point)) return
-    flyoutWindow?.hide()
-  }, ms)
-}
-
-function inBounds(b: Electron.Rectangle, p: Electron.Point): boolean {
-  return p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height
-}
-
-function showFlyout(): void {
-  if (!flyoutWindow) return
-  positionFlyout()
-  if (!flyoutWindow.isVisible()) {
-    flyoutWindow.showInactive()
-    flyoutWindow.webContents.send('state:changed', state)
-  }
 }
 
 function toggleMain(): void {
@@ -298,20 +258,23 @@ function toggleMain(): void {
 function updateTrayTip(): void {
   if (!tray) return
   const next = upcomingGroups(state, Date.now(), 2, true)
-  if (!next.length) {
-    tray.setToolTip('Респ боссов — нет ближайших')
-    return
+  let tip = 'Респ боссов — нет ближайших'
+  if (next.length) {
+    const names = next[0].bosses.map((boss) => boss.name).join(', ')
+    const mins = Math.max(0, Math.round((next[0].at - Date.now()) / 60000))
+    const remain = mins < 1 ? 'через меньше минуты' : `через ${mins} мин`
+    tip = `Респ боссов\n${names}\n${remain}`
   }
-  const names = next[0].bosses.map((boss) => boss.name).join(', ')
-  const mins = Math.max(0, Math.round((next[0].at - Date.now()) / 60000))
-  const remain = mins < 1 ? 'через меньше минуты' : `через ${mins} мин`
-  tray.setToolTip(`Респ боссов\n${names}\n${remain}`)
+  if (tip === lastTrayTip) return
+  lastTrayTip = tip
+  tray.setToolTip(tip)
 }
 
 function broadcast(): void {
-  for (const win of [mainWindow, flyoutWindow, toastWindow]) {
-    win?.webContents.send('state:changed', state)
+  for (const win of [mainWindow, toastWindow]) {
+    if (win && !win.isDestroyed()) win.webContents.send('state:changed', state)
   }
+  lastTrayTip = ''
   updateTrayTip()
 }
 
@@ -440,8 +403,9 @@ function tick(): void {
   const horizonSec = Math.max(0, ...state.reminders.map((item) => reminderSeconds(item)))
   const upcoming = upcomingGroups(state, now, 40, true)
   updateTrayTip()
-  flyoutWindow?.webContents.send('tick', now)
-  mainWindow?.webContents.send('tick', now)
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
+    mainWindow.webContents.send('tick', now)
+  }
 
   for (const group of upcoming) {
     const remain = group.at - now
@@ -524,9 +488,7 @@ function registerIpc(): void {
     mainWindow?.show()
     mainWindow?.focus()
   })
-  ipcMain.handle('flyout:pin', (_e, pinned: boolean) => {
-    flyoutPinned = pinned
-  })
+  ipcMain.handle('flyout:pin', () => undefined)
   ipcMain.handle('app:quit', () => {
     app.isQuitting = true
     app.quit()
@@ -562,14 +524,12 @@ function registerProtocol(): void {
     if (kind === 'custom-sound') file = join(dataDir(), 'sounds', name)
     if (kind === 'icon') file = join(resourcesDir(), 'icon.png')
     if (!file || !existsSync(file)) return new Response('not found', { status: 404 })
-    const body = readFileSync(file)
-    return new Response(body, {
-      headers: {
-        'Content-Type': mimeFor(file),
-        'Cache-Control': 'no-cache',
-        'Access-Control-Allow-Origin': '*'
-      }
-    })
+    const res = await net.fetch(pathToFileURL(file).href)
+    const headers = new Headers(res.headers)
+    headers.set('Content-Type', mimeFor(file))
+    headers.set('Cache-Control', 'public, max-age=86400')
+    headers.set('Access-Control-Allow-Origin', '*')
+    return new Response(res.body, { status: res.status, headers })
   })
 }
 
@@ -600,14 +560,15 @@ if (!gotLock) {
     app.setAppUserModelId('ru.bdo.bossalerts')
     registerProtocol()
     state = loadState()
+    saveState()
     cacheBuiltinSounds()
     applyAutostart(state.autostart)
     registerIpc()
     mainWindow = createMainWindow()
-    flyoutWindow = createFlyout()
-    toastWindow = createToast()
     setupTray()
-    mainWindow.once('ready-to-show', () => mainWindow?.show())
+    mainWindow.once('ready-to-show', () => {
+      if (!startedInTray()) mainWindow?.show()
+    })
     setInterval(tick, 1000)
     tick()
   })

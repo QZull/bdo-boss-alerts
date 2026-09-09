@@ -268,7 +268,10 @@ function RemindersPanel({ state, onChange }: { state: AppState; onChange: (state
         <div className="space-y-3 rounded-2xl border border-[var(--color-line)] bg-[var(--color-panel)] p-4">
           <h2 className="font-display text-lg text-[var(--color-gold)]">Система</h2>
           <label className="flex items-center justify-between gap-3 text-sm">
-            <span>Запускать вместе с Windows</span>
+            <span>
+              Запускать вместе с Windows
+              <span className="mt-0.5 block text-xs text-[var(--color-muted)]">при старте системы остаётся в трее</span>
+            </span>
             <input
               type="checkbox"
               className="app-check"

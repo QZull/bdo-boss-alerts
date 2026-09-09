@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react'
 import type { AppState, Boss } from '@shared/types'
 import { DAYS_RU, DAYS_SHORT } from '@shared/types'
 import { displaySlots, formatCountdown, formatWhen, offsetParts, slotBosses, uniqueTimes, upcomingGroups } from '@shared/logic'
@@ -13,8 +14,8 @@ export function SchedulePage({
   now: number
   onOpenSettings: () => void
 }) {
-  const slots = displaySlots(state.extraSlots, state.utcOffset)
-  const times = uniqueTimes(slots)
+  const slots = useMemo(() => displaySlots(state.extraSlots, state.utcOffset), [state.extraSlots, state.utcOffset])
+  const times = useMemo(() => uniqueTimes(slots), [slots])
   const today = offsetParts(now, state.utcOffset).weekday
   const upcoming = upcomingGroups(state, now, 4, true)
   const next = upcoming[0] ? offsetParts(upcoming[0].at, state.utcOffset) : null
@@ -51,26 +52,7 @@ export function SchedulePage({
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto p-5">
-        <div className="min-w-[920px]">
-          <div className="grid gap-2" style={{ gridTemplateColumns: '3.2rem repeat(7, minmax(0, 1fr))' }}>
-            <div className="rounded-lg bg-black/30 px-1 py-3 text-center text-[11px] text-[var(--color-muted)]">
-              Время
-            </div>
-            {DAYS_SHORT.map((day, index) => (
-              <div
-                key={day}
-                className={`rounded-lg px-2 py-3 text-center font-display text-sm ${
-                  index === today ? 'bg-[var(--color-gold)]/15 text-[var(--color-gold)]' : 'bg-black/30 text-[var(--color-cream)]'
-                }`}
-              >
-                {DAYS_RU[index]}
-              </div>
-            ))}
-            {times.map((time) => (
-              <Row key={time} time={time} state={state} slots={slots} today={today} nextKey={nextKey} />
-            ))}
-          </div>
-        </div>
+        <WeekGrid state={state} slots={slots} times={times} today={today} nextKey={nextKey} />
       </div>
     </div>
   )
@@ -114,6 +96,43 @@ function UpcomingCard({
     </div>
   )
 }
+
+const WeekGrid = memo(function WeekGrid({
+  state,
+  slots,
+  times,
+  today,
+  nextKey
+}: {
+  state: AppState
+  slots: ReturnType<typeof displaySlots>
+  times: string[]
+  today: number
+  nextKey: string
+}) {
+  return (
+    <div className="min-w-[920px]">
+      <div className="grid gap-2" style={{ gridTemplateColumns: '3.2rem repeat(7, minmax(0, 1fr))' }}>
+        <div className="rounded-lg bg-black/30 px-1 py-3 text-center text-[11px] text-[var(--color-muted)]">
+          Время
+        </div>
+        {DAYS_SHORT.map((day, index) => (
+          <div
+            key={day}
+            className={`rounded-lg px-2 py-3 text-center font-display text-sm ${
+              index === today ? 'bg-[var(--color-gold)]/15 text-[var(--color-gold)]' : 'bg-black/30 text-[var(--color-cream)]'
+            }`}
+          >
+            {DAYS_RU[index]}
+          </div>
+        ))}
+        {times.map((time) => (
+          <Row key={time} time={time} state={state} slots={slots} today={today} nextKey={nextKey} />
+        ))}
+      </div>
+    </div>
+  )
+})
 
 function Row({
   time,
